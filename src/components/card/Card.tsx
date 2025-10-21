@@ -21,7 +21,7 @@ export const Card = ({
   return (
     <Component
       className={cn(
-        "w-full rounded-lg p-4",
+        "w-full max-w-[350px] rounded-lg p-4",
         {
           "btn-primary": variant === "primary",
           "btn-secondary": variant === "secondary"
