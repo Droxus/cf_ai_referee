@@ -241,10 +241,7 @@ export default function Chat() {
                     }`}
                   >
                     {showAvatar && !isUser ? (
-                      <Avatar
-                        username={"AI"}
-                        image="public/images/cf-image.webp"
-                      />
+                      <Avatar username={"AI"} image="/images/cf-image.webp" />
                     ) : (
                       !isUser && <div className="w-8" />
                     )}
