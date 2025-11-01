@@ -33,75 +33,43 @@ const toolsRequiringConfirmation: (keyof typeof tools)[] = [
 ];
 
 export default function Chat() {
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    // Check localStorage first, default to dark if not found
-    const savedTheme = localStorage.getItem("theme");
-    return (savedTheme as "dark" | "light") || "dark";
-  });
+  const [theme, setTheme] = useState<"dark" | "light">(
+    () => (localStorage.getItem("theme") as "dark" | "light") || "dark"
+  );
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [userId, setUserId] = useState("");
+
+  useEffect(() => {
+    let id = localStorage.getItem("chatUserId");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("chatUserId", id);
+      console.log("🆔 Created new user ID:", id);
+    } else {
+      console.log("🆔 Using existing user ID:", id);
+    }
+    setUserId(id);
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   useEffect(() => {
-    // Apply theme class on mount and when theme changes
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-      document.documentElement.classList.remove("light");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.classList.add("light");
-    }
-
-    // Save theme preference to localStorage
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    document.documentElement.classList.toggle("light", theme === "light");
     localStorage.setItem("theme", theme);
   }, [theme]);
 
-  // Scroll to bottom on mount
-  useEffect(() => {
-    scrollToBottom();
-  }, [scrollToBottom]);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-  };
+  const toggleTheme = () =>
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
 
   const agent = useAgent({
-    agent: "chat"
+    agent: "Chat",
+    name: `user-${userId}`
   });
-
-  const [agentInput, setAgentInput] = useState("");
-  const handleAgentInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    setAgentInput(e.target.value);
-  };
-
-  const handleAgentSubmit = async (
-    e: React.FormEvent,
-    extraData: Record<string, unknown> = {}
-  ) => {
-    e.preventDefault();
-    if (!agentInput.trim()) return;
-
-    const message = agentInput;
-    setAgentInput("");
-
-    // Send message to agent
-    await sendMessage(
-      {
-        role: "user",
-        parts: [{ type: "text", text: message }]
-      },
-      {
-        body: extraData
-      }
-    );
-  };
 
   const {
     messages: agentMessages,
@@ -114,26 +82,86 @@ export default function Chat() {
     agent
   });
 
-  // Scroll to bottom when messages change
+  const [agentInput, setAgentInput] = useState("");
+
+  // Local messages state for immediate UI updates
+  const [localMessages, setLocalMessages] = useState<
+    UIMessage<{ createdAt: string }>[]
+  >([]);
+
+  // Sync agentMessages to localMessages
   useEffect(() => {
-    agentMessages.length > 0 && scrollToBottom();
+    setLocalMessages(agentMessages);
+  }, [agentMessages]);
+
+  const handleAgentInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => setAgentInput(e.target.value);
+
+  const handleAgentSubmit = async (
+    e: React.FormEvent,
+    extraData: Record<string, unknown> = {}
+  ) => {
+    e.preventDefault();
+    if (!agentInput.trim()) return;
+
+    const message = agentInput;
+    setAgentInput("");
+
+    await sendMessage(
+      {
+        role: "user",
+        parts: [{ type: "text", text: message }]
+      },
+      { body: extraData }
+    );
+
+    setTimeout(scrollToBottom, 100);
+  };
+
+  // Scroll on new messages
+  useEffect(() => {
+    scrollToBottom();
   }, [agentMessages, scrollToBottom]);
 
-  const pendingToolCallConfirmation = agentMessages.some((m: UIMessage) =>
+  // Enhanced clear function that updates UI immediately
+  const handleClearMessages = async () => {
+    try {
+      console.log("🧹 Clearing chat history...");
+
+      // 1. Immediately clear UI (optimistic update)
+      setLocalMessages([]);
+
+      // 2. Clear client-side history
+      clearHistory();
+
+      // 3. Send server command to clear storage
+      await sendMessage({
+        role: "system",
+        parts: [{ type: "text", text: "(clear requested)" }] // invisible to user
+      });
+
+      console.log("✅ Chat cleared!");
+    } catch (err) {
+      console.error("❌ Failed to clear messages:", err);
+      // Revert on error
+      setLocalMessages(agentMessages);
+    }
+  };
+
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  const pendingToolCallConfirmation = agentMessages.some((m) =>
     m.parts?.some(
       (part) =>
         isToolUIPart(part) &&
         part.state === "input-available" &&
-        // Manual check inside the component
         toolsRequiringConfirmation.includes(
           part.type.replace("tool-", "") as keyof typeof tools
         )
     )
   );
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
 
   return (
     <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
@@ -185,7 +213,7 @@ export default function Chat() {
             size="md"
             shape="square"
             className="rounded-full h-9 w-9"
-            onClick={clearHistory}
+            onClick={handleClearMessages}
           >
             <Trash size={20} />
           </Button>
@@ -193,7 +221,7 @@ export default function Chat() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
-          {agentMessages.length === 0 && (
+          {localMessages.length === 0 && (
             <div className="h-full flex items-center justify-center">
               <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
                 <div className="text-center space-y-4">
@@ -220,10 +248,10 @@ export default function Chat() {
             </div>
           )}
 
-          {agentMessages.map((m, index) => {
+          {localMessages.map((m, index) => {
             const isUser = m.role === "user";
             const showAvatar =
-              index === 0 || agentMessages[index - 1]?.role !== m.role;
+              index === 0 || localMessages[index - 1]?.role !== m.role;
 
             return (
               <div key={m.id}>
@@ -251,7 +279,6 @@ export default function Chat() {
                         {m.parts?.map((part, i) => {
                           if (part.type === "text") {
                             return (
-                              // biome-ignore lint/suspicious/noArrayIndexKey: immutable index
                               <div key={i}>
                                 <Card
                                   className={`p-3 rounded-md bg-neutral-100 dark:bg-neutral-900 ${
@@ -305,12 +332,10 @@ export default function Chat() {
                                 toolName as keyof typeof tools
                               );
 
-                            // Skip rendering the card in debug mode
                             if (showDebug) return null;
 
                             return (
                               <ToolInvocationCard
-                                // biome-ignore lint/suspicious/noArrayIndexKey: using index is safe here as the array is static
                                 key={`${toolCallId}-${i}`}
                                 toolUIPart={part}
                                 toolCallId={toolCallId}

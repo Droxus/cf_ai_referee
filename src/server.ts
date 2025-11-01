@@ -72,6 +72,18 @@ export class Chat extends AIChatAgent<Env> {
     return null;
   }
 
+  private getLatestMessage(incomingMessages: any[]): any | null {
+    // Find the last user message in the array
+    for (let i = incomingMessages.length - 1; i >= 0; i--) {
+      const msg = incomingMessages[i];
+      const content = this.extractContent(msg);
+      if (content.length > 0) {
+        return msg;
+      }
+    }
+    return null;
+  }
+
   /**
    * Convert message to StoredMessage format
    */
@@ -124,21 +136,53 @@ export class Chat extends AIChatAgent<Env> {
     console.log(`📨 Received ${this.messages.length} messages in request`);
 
     // Get ONLY the latest user message
-    const latestUserMessage = this.getLatestUserMessage(this.messages);
+    const latestMessage = this.getLatestMessage(this.messages);
 
-    if (!latestUserMessage) {
+    if (!latestMessage) {
       console.log("⚠️ No valid user message found");
       return new Response("No valid message", { status: 200 });
     }
 
-    const userMessageContent = this.extractContent(latestUserMessage);
+    const messageContent = this.extractContent(latestMessage);
+    const messageRole = latestMessage.role;
     console.log(
-      `💬 Processing user message: "${userMessageContent.substring(0, 50)}..."`
+      `💬 Processing message: "${messageContent.substring(0, 50)}..."`
     );
+
+    if (messageRole == "system" && messageContent === "(clear requested)") {
+      const count = storedHistory.length;
+
+      console.log("\n🗑️ === CLEARING ALL MESSAGES ===");
+      console.log(`Deleting ${count} messages...`);
+
+      await this.ctx.storage.delete("conversation_history");
+
+      console.log("✅ All messages cleared!");
+      console.log("=== CLEAR COMPLETE ===\n");
+
+      // Return a response to the user
+      const stream = createUIMessageStream({
+        execute: async ({ writer }) => {
+          const result = streamText({
+            system: `You are a helpful assistant.`,
+            messages: [
+              {
+                role: "user",
+                content: `respond with this exact message: 🗑️ Cleared ${count} messages from storage. Chat memory reset!`
+              }
+            ],
+            model
+          });
+
+          writer.merge(result.toUIMessageStream());
+        }
+      });
+      return createUIMessageStreamResponse({ stream });
+    }
 
     // Check if this exact message is already in storage (avoid duplicates)
     const isDuplicate = storedHistory.some(
-      (msg) => msg.role === "user" && msg.content === userMessageContent
+      (msg) => msg.role === "user" && msg.content === messageContent
     );
 
     if (isDuplicate) {
@@ -149,9 +193,9 @@ export class Chat extends AIChatAgent<Env> {
     // Create timestamped user message
     const now = new Date().toISOString();
     const userMessageWithTimestamp = {
-      ...latestUserMessage,
+      ...latestMessage,
       metadata: {
-        ...latestUserMessage.metadata,
+        ...latestMessage.metadata,
         createdAt: now
       }
     };
