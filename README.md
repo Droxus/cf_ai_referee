@@ -2,6 +2,10 @@
 
 Interactive AI-powered chat that acts as a football referee assistant. Users can ask about in-game situations, football rules, and hypothetical league scenarios. The AI strictly responds to football-related questions, providing accurate referee-style guidance.
 
+## Deployed version
+
+https://cf-ai-referee.alexredov1269.workers.dev/
+
 ## Features
 
 - ⚽ **AI Football Referee Assistant**  
