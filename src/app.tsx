@@ -239,19 +239,44 @@ export default function Chat() {
                   <div className="bg-[#F48120]/10 text-[#F48120] rounded-full p-3 inline-flex">
                     <Robot size={24} />
                   </div>
-                  <h3 className="font-semibold text-lg">Welcome to AI Chat</h3>
+                  <h3 className="font-semibold text-lg">
+                    Welcome to AI Football Referee
+                  </h3>
                   <p className="text-muted-foreground text-sm">
-                    Start a conversation with your AI assistant. Try asking
-                    about:
+                    Ask about football rules, in-game situations, or
+                    hypothetical scenarios. Try asking:
                   </p>
                   <ul className="text-sm text-left space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="text-[#F48120]">•</span>
-                      <span>Weather information for any city</span>
+                      <span>
+                        What happens if the ball crosses the goal line?
+                      </span>
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="text-[#F48120]">•</span>
-                      <span>Local time in different locations</span>
+                      <span>What is offside?</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-[#F48120]">•</span>
+                      <span>
+                        Should this be a penalty if the defender handles the
+                        ball inside the box?
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-[#F48120]">•</span>
+                      <span>
+                        If Arsenal wins the Premier League, can they play in the
+                        Champions League next season?
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="text-[#F48120]">•</span>
+                      <span>
+                        How many substitutes are allowed in a Premier League
+                        match?
+                      </span>
                     </li>
                   </ul>
                 </div>
