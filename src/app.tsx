@@ -91,7 +91,18 @@ export default function Chat() {
 
   // Sync agentMessages to localMessages
   useEffect(() => {
-    setLocalMessages(agentMessages);
+    const filtered = agentMessages.filter((m) => {
+      try {
+        const content = (m.parts?.[0] as any)?.text;
+        if (!content) return true; // keep messages with no text
+        const parsed = JSON.parse(content);
+        return parsed.type !== "clear";
+      } catch {
+        return true; // if not JSON, keep message
+      }
+    });
+
+    setLocalMessages(filtered);
   }, [agentMessages]);
 
   const handleAgentInputChange = (
