@@ -135,21 +135,22 @@ export class Chat extends AIChatAgent<Env> {
     console.log(`📦 Loaded ${storedHistory.length} messages from storage`);
     console.log(`📨 Received ${this.messages.length} messages in request`);
 
-    // Get ONLY the latest user message
+    // Get ONLY the latest message
     const latestMessage = this.getLatestMessage(this.messages);
 
     if (!latestMessage) {
-      console.log("⚠️ No valid user message found");
+      console.log("⚠️ No valid message found");
       return new Response("No valid message", { status: 200 });
     }
 
     const messageContent = this.extractContent(latestMessage);
     const messageRole = latestMessage.role;
     console.log(
-      `💬 Processing message: "${messageContent.substring(0, 50)}..."`
+      `💬 Processing ${messageRole} message: "${messageContent.substring(0, 50)}..."`
     );
 
-    if (messageRole == "system" && messageContent === "(clear requested)") {
+    // Handle clear request - return immediately without storing
+    if (messageRole === "system" && messageContent === "(clear requested)") {
       const count = storedHistory.length;
 
       console.log("\n🗑️ === CLEARING ALL MESSAGES ===");
@@ -160,34 +161,24 @@ export class Chat extends AIChatAgent<Env> {
       console.log("✅ All messages cleared!");
       console.log("=== CLEAR COMPLETE ===\n");
 
-      // Return a response to the user
-      const stream = createUIMessageStream({
-        execute: async ({ writer }) => {
-          const result = streamText({
-            system: `You are a helpful assistant.`,
-            messages: [
-              {
-                role: "user",
-                content: `respond with this exact message: 🗑️ Cleared ${count} messages from storage. Chat memory reset!`
-              }
-            ],
-            model
-          });
-
-          writer.merge(result.toUIMessageStream());
+      // Return simple success response without streaming
+      return new Response(
+        JSON.stringify({
+          type: "clear",
+          success: true,
+          messagesDeleted: count
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
         }
-      });
-      return createUIMessageStreamResponse({ stream });
+      );
     }
 
-    // Check if this exact message is already in storage (avoid duplicates)
-    const isDuplicate = storedHistory.some(
-      (msg) => msg.role === "user" && msg.content === messageContent
-    );
-
-    if (isDuplicate) {
-      console.log("⚠️ Duplicate message detected, skipping");
-      return new Response("Duplicate message", { status: 200 });
+    // Only process user messages from here on
+    if (messageRole !== "user") {
+      console.log("⚠️ Ignoring non-user message");
+      return new Response("Non-user message ignored", { status: 200 });
     }
 
     // Create timestamped user message
